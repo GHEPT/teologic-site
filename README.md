@@ -170,3 +170,317 @@ src/
 ├── server.ts
 ├── start.ts
 └── styles.css
+```
+The architecture is intended to keep the institutional platform maintainable while allowing new digital experiences to evolve without turning the application into a shared monolith for unrelated Teo Logic products.
+
+> *A arquitetura busca manter a plataforma institucional sustentável enquanto permite que novas experiências digitais evoluam sem transformar a aplicação em um monólito compartilhado por produtos independentes da Teo Logic.*
+
+
+## Server-Side Rendering
+
+The application uses TanStack Start with a Nitro-powered Node.js server runtime.
+
+> *A aplicação utiliza TanStack Start com um runtime de servidor Node.js baseado em Nitro.*
+
+The TanStack Start server entry is redirected to a custom `src/server.ts` implementation, allowing the application to maintain its own SSR error-handling boundary.
+
+> *A entrada de servidor do TanStack Start é direcionada para uma implementação personalizada em `src/server.ts`, permitindo que a aplicação mantenha sua própria camada de tratamento de erros de SSR.*
+
+Production builds explicitly use the Nitro `node-server` preset.
+
+> *Os builds de produção utilizam explicitamente o preset `node-server` do Nitro.*
+
+
+## Data Architecture
+
+### PostgreSQL as the Source of Truth
+
+The application uses a dedicated PostgreSQL database as its single authoritative data source.
+
+> *A aplicação utiliza um banco PostgreSQL dedicado como sua única fonte autoritativa de dados.*
+
+The `teologic_site` logical database runs on Teo Logic's shared PostgreSQL infrastructure while maintaining application-level isolation.
+
+> *O banco lógico `teologic_site` é executado na infraestrutura PostgreSQL compartilhada da Teo Logic, mantendo isolamento no nível da aplicação.*
+
+This architectural decision is formally documented in:
+
+```text
+docs/adr/0001-postgres-proprio-como-fonte-da-verdade.md
+```
+
+> *Essa decisão arquitetural está formalmente documentada por meio de um Architecture Decision Record.*
+
+
+## Database Access
+
+The application uses separate database credentials according to operational responsibility.
+
+> *A aplicação utiliza credenciais de banco distintas de acordo com a responsabilidade operacional.*
+
+`DATABASE_URL`
+
+Used by the application runtime with restricted CRUD privileges.
+
+> *Utilizada pelo runtime da aplicação com privilégios restritos de CRUD.*
+
+`DATABASE_URL_ADMIN`
+
+Used exclusively for DDL operations and database migrations.
+
+> *Utilizada exclusivamente para operações DDL e migrations do banco de dados.*
+
+Drizzle ORM is the official application data access layer.
+
+> *O Drizzle ORM é a camada oficial de acesso aos dados da aplicação.*
+
+
+## Database Migrations
+
+The database schema is defined in:
+
+```text
+src/db/schema.ts
+```
+
+Generate a new migration with:
+
+> *Gere uma nova migration com:*
+
+```bash
+bun run db:generate
+```
+
+Generated migrations are versioned under:
+
+```text
+src/db/migrations/
+```
+
+Apply pending migrations with:
+
+> *Aplique as migrations pendentes com:*
+
+```bash
+bun run db:migrate
+```
+
+Database evolution is managed exclusively through versioned Drizzle migrations.
+
+> *A evolução do banco de dados é gerenciada exclusivamente por meio de migrations Drizzle versionadas.*
+
+
+## Schema Drift Observability
+
+The application includes a schema drift verification mechanism executed during application cold starts.
+
+> *A aplicação inclui um mecanismo de verificação de divergência de schema executado durante cold starts.*
+
+The verification compares applied database migrations against the versioned migration journal.
+
+> *A verificação compara as migrations aplicadas no banco de dados com o journal de migrations versionado.*
+
+Possible structured events include:
+
+```text
+db.schema_drift.match
+db.schema_drift.detected
+```
+
+The current strategy is intentionally observability-only: drift is reported without preventing application startup.
+
+> *A estratégia atual é intencionalmente baseada apenas em observabilidade: divergências são registradas sem impedir a inicialização da aplicação.*
+
+Any future transition to a fail-fast strategy requires a new Architecture Decision Record.
+
+> *Qualquer evolução futura para uma estratégia fail-fast exige um novo Architecture Decision Record.*
+
+
+## Architectural Decisions
+
+Relevant architectural decisions are documented as ADRs under:
+
+```text
+docs/adr/
+```
+
+The first accepted decision establishes the application's database strategy:
+
+```text
+ADR-0001 — PostgreSQL próprio como fonte única da verdade
+```
+
+> *A primeira decisão aceita estabelece a estratégia de banco de dados da aplicação: PostgreSQL próprio como fonte única da verdade.*
+
+The ADR formalizes data ownership, database isolation, connection responsibilities, migration strategy, and boundaries regarding infrastructure integrations.
+
+> *O ADR formaliza propriedade dos dados, isolamento do banco, responsabilidades de conexão, estratégia de migrations e limites relacionados às integrações de infraestrutura.*
+
+
+## Running Locally
+
+### Requirements
+
+- Node.js 22 or newer
+- Bun
+- PostgreSQL access
+
+> *Requisitos para execução do projeto em ambiente local.*
+
+Install the dependencies:
+
+> *Instale as dependências:*
+
+```bash
+bun install
+```
+
+Start the development server:
+
+> *Inicie o servidor de desenvolvimento:*
+
+```bash
+bun run dev
+```
+
+
+## Production Build
+
+Generate the default production build:
+
+> *Gere o build padrão de produção:*
+
+```bash
+bun run build
+```
+
+Generate the Node.js server build used by the production infrastructure:
+
+> *Gere o build de servidor Node.js utilizado pela infraestrutura de produção:*
+
+```bash
+bun run build:node
+```
+
+Start the production application:
+
+> *Inicie a aplicação em modo de produção:*
+
+```bash
+bun run start
+```
+
+
+## Code Quality
+
+Run ESLint:
+
+> *Execute o ESLint:*
+
+```bash
+bun run lint
+```
+
+Format the codebase with Prettier:
+
+> *Formate o código-fonte com Prettier:*
+
+```bash
+bun run format
+```
+
+
+## Deployment
+
+The application is deployed to Teo Logic's VPS infrastructure through EasyPanel.
+
+> *A aplicação é publicada na infraestrutura VPS da Teo Logic por meio do EasyPanel.*
+
+Nixpacks defines the production build environment and uses:
+
+- Node.js 22
+- Bun
+- Frozen lockfile installation
+- Nitro Node.js server build
+
+> *O Nixpacks define o ambiente de build de produção e utiliza Node.js 22, Bun, instalação com lockfile imutável e build de servidor Node.js com Nitro.*
+
+The production build command is:
+
+```bash
+bun run build:node
+```
+
+The application starts with:
+
+```bash
+bun run start
+```
+
+
+## Environment
+
+The application requires environment-specific configuration for infrastructure and data access.
+
+> *A aplicação exige configurações específicas de ambiente para infraestrutura e acesso aos dados.*
+
+At minimum, the database architecture uses:
+
+```text
+DATABASE_URL
+DATABASE_URL_ADMIN
+```
+
+Environment files and production credentials must never be committed to the repository.
+
+> *Arquivos de ambiente e credenciais de produção nunca devem ser versionados no repositório.*
+
+
+## Documentation
+
+Additional technical documentation is available under:
+
+```text
+docs/
+```
+
+Current documentation includes:
+
+```text
+docs/database.md
+docs/adr/
+```
+
+> *A documentação técnica complementar inclui o guia operacional do banco de dados e os registros formais de decisões arquiteturais.*
+
+
+## Repository Role
+
+This repository is responsible for Teo Logic Solutions' public-facing institutional platform and the digital experiences that belong to its business entry journey.
+
+> *Este repositório é responsável pela plataforma institucional pública da Teo Logic Solutions e pelas experiências digitais pertencentes à sua jornada de entrada de negócios.*
+
+Independent Teo Logic products and systems should maintain their own application and data boundaries.
+
+> *Produtos e sistemas independentes da Teo Logic devem manter seus próprios limites de aplicação e dados.*
+
+
+## Author
+
+**Eduardo Teodoro**
+
+Founder of Teo Logic Solutions and Senior Backend Java Developer focused on SAP Commerce Cloud, enterprise integrations, REST APIs, software architecture, automation, and artificial intelligence.
+
+> *Fundador da Teo Logic Solutions e Desenvolvedor Backend Java Sênior com foco em SAP Commerce Cloud, integrações enterprise, APIs REST, arquitetura de software, automação e inteligência artificial.*
+
+- LinkedIn: https://www.linkedin.com/in/epteodoro/
+- GitHub: https://github.com/GHEPT
+
+
+## Teo Logic Solutions
+
+**Technology structured around business evolution.**
+
+> ***Tecnologia estruturada em torno da evolução de negócios.***
+
+https://teologic.com.br
